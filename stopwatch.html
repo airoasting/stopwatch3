@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스탑워치</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #171614;
+    --panel: #22211e;
+    --card-top: #34332f;
+    --card-top2: #2d2c29;
+    --card-bot: #2a2926;
+    --card-bot2: #232220;
+    --ink: #f1ead8;
+    --muted: #8f897a;
+    --amber: #f2a93b;
+    --red: #e5533d;
+    --green: #8fcf7e;
+    --ch: clamp(56px, 19vw, 150px);   /* 카드 높이 */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: #ffffff;
+    color: var(--ink);
+    font-family: "Oswald", "Helvetica Neue", "Apple SD Gothic Neo", Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: 100%; max-width: 720px; }
+
+  /* 상단 바 */
+  .top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding: 0 4px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--amber); font-size: 13px; letter-spacing: .28em;
+  }
+  .lamp {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #4a2a22; box-shadow: inset 0 1px 2px rgba(0,0,0,.6);
+    transition: background .2s, box-shadow .2s;
+  }
+  .lamp.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .sound {
+    background: none; border: 1px solid #dcd8ce; color: #8a8478;
+    font: inherit; font-size: 12px; letter-spacing: .15em;
+    padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .sound.on { color: #2a2722; border-color: #b9b3a5; }
+
+  /* 전광판 패널 */
+  .board {
+    position: relative;
+    background: linear-gradient(#262521, var(--panel));
+    border-radius: 18px;
+    padding: clamp(22px, 5vw, 40px) clamp(14px, 4vw, 32px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -2px 0 rgba(0,0,0,.4), 0 18px 40px rgba(0,0,0,.18);
+  }
+  .screw {
+    position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #5d5a52, #2a2925);
+    box-shadow: 0 1px 1px rgba(0,0,0,.6);
+  }
+  .screw::after {
+    content: ""; position: absolute; left: 2px; right: 2px; top: 4px; height: 2px;
+    background: rgba(0,0,0,.55); transform: rotate(35deg);
+  }
+  .screw:nth-child(1) { top: 10px; left: 10px; }
+  .screw:nth-child(2) { top: 10px; right: 10px; }
+  .screw:nth-child(3) { bottom: 10px; left: 10px; }
+  .screw:nth-child(4) { bottom: 10px; right: 10px; }
+
+  .digits {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: calc(var(--ch) * .05);
+  }
+  .digits.long { --ch: clamp(44px, 13vw, 112px); }
+  .digits > * { flex-shrink: 0; }
+  .group { display: flex; gap: calc(var(--ch) * .05); }
+  .digits:not(.long) .hours,
+  .digits:not(.long) .hsep { display: none; }
+
+  /* 플립 카드 */
+  .digit {
+    position: relative;
+    width: calc(var(--ch) * .68);
+    height: var(--ch);
+    perspective: calc(var(--ch) * 4);
+    font-size: calc(var(--ch) * .8);
+    font-weight: 500;
+    line-height: 1;
+  }
+  .digit.small {
+    width: calc(var(--ch) * .5);
+    height: calc(var(--ch) * .72);
+    font-size: calc(var(--ch) * .58);
+    color: var(--amber);
+  }
+  .digit::before {               /* 경첩 핀 */
+    content: ""; position: absolute; z-index: 0;
+    left: -3px; right: -3px; top: calc(50% - 4px); height: 8px;
+    background: #0f0f0e; border-radius: 2px;
+  }
+  .digit::after {                /* 가운데 갈라진 선 */
+    content: ""; position: absolute; z-index: 6;
+    left: 0; right: 0; top: calc(50% - 1px); height: 2px;
+    background: rgba(0,0,0,.6);
+  }
+  .half {
+    position: absolute; left: 0; right: 0; height: 50%;
+    overflow: hidden; z-index: 1;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  }
+  .half span {
+    position: absolute; left: 0; right: 0; height: 200%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .t {
+    top: 0; border-radius: 8px 8px 0 0; transform-origin: 50% 100%;
+    background: linear-gradient(var(--card-top), var(--card-top2));
+  }
+  .t span { top: 0; }
+  .b {
+    bottom: 0; border-radius: 0 0 8px 8px; transform-origin: 50% 0%;
+    background: linear-gradient(var(--card-bot), var(--card-bot2));
+    box-shadow: 0 4px 8px rgba(0,0,0,.35);
+  }
+  .b span { bottom: 0; }
+  .ft { z-index: 4; }
+  .fb { z-index: 3; }
+  .digit.flip .ft { animation: flapTop calc(var(--d) / 2) ease-in forwards; }
+  .digit.flip .fb { animation: flapBot calc(var(--d) / 2) ease-out calc(var(--d) / 2) both; }
+  @keyframes flapTop {
+    from { transform: rotateX(0); filter: brightness(1); }
+    to   { transform: rotateX(-90deg); filter: brightness(.5); }
+  }
+  @keyframes flapBot {
+    from { transform: rotateX(90deg); filter: brightness(.5); }
+    to   { transform: rotateX(0); filter: brightness(1); }
+  }
+
+  /* 콜론, 소수점 */
+  .colon, .dot {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: calc(var(--ch) * .2);
+    height: var(--ch);
+    padding: 0 calc(var(--ch) * .04);
+  }
+  .dot { justify-content: flex-end; padding-bottom: calc(var(--ch) * .06); height: auto; }
+  .colon i, .dot i {
+    display: block; width: calc(var(--ch) * .08); height: calc(var(--ch) * .08);
+    border-radius: 50%; background: var(--ink); opacity: .85;
+  }
+  .board.paused .colon i { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .15; } }
+
+  .lap-now {
+    text-align: center; margin-top: clamp(16px, 3vw, 24px);
+    color: var(--muted); font-size: 15px; letter-spacing: .12em;
+    min-height: 22px; font-variant-numeric: tabular-nums;
+  }
+  .lap-now b { color: var(--amber); font-weight: 400; }
+
+  /* 기계식 버튼 */
+  .controls {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin: 30px 0 34px;
+  }
+  .key {
+    font: inherit; font-size: 20px; letter-spacing: .2em;
+    padding: 18px 0 16px; border: none; border-radius: 12px; cursor: pointer;
+    background: #e9e1cb; color: #2a2722;
+    box-shadow: 0 6px 0 #a59b82, 0 10px 18px rgba(0,0,0,.15);
+    transition: transform .06s, box-shadow .06s, background .2s;
+  }
+  .key:active:not(:disabled), .key.pressed {
+    transform: translateY(5px);
+    box-shadow: 0 1px 0 #a59b82, 0 3px 6px rgba(0,0,0,.4);
+  }
+  .key:disabled { opacity: .35; cursor: default; }
+  .key:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }
+  .key.go { background: var(--amber); color: #2b1c05; box-shadow: 0 6px 0 #a8701e, 0 10px 18px rgba(0,0,0,.15); }
+  .key.go:active, .key.go.pressed { box-shadow: 0 1px 0 #a8701e, 0 3px 6px rgba(0,0,0,.4); }
+  .key.stop { background: var(--red); color: #fff4ee; box-shadow: 0 6px 0 #962d1e, 0 10px 18px rgba(0,0,0,.15); }
+  .key.stop:active, .key.stop.pressed { box-shadow: 0 1px 0 #962d1e, 0 3px 6px rgba(0,0,0,.4); }
+
+  /* 랩 기록판 */
+  .laps-board {
+    background: var(--panel); border-radius: 14px; padding: 14px clamp(12px, 3vw, 22px);
+    box-shadow: 0 12px 30px rgba(0,0,0,.14);
+  }
+  .laps-head, .row {
+    display: grid; grid-template-columns: 3.2em 1fr 1fr 3.4em;
+    align-items: center; gap: 8px;
+  }
+  .laps-head {
+    color: var(--amber); font-size: 12px; letter-spacing: .25em;
+    padding: 4px 0 10px; border-bottom: 1px solid #34322d;
+  }
+  .laps-head span:nth-child(n+2), .row > span:nth-child(n+2) { text-align: right; }
+  .row { padding: 8px 0; border-bottom: 1px solid #2c2b27; font-size: clamp(15px, 3.6vw, 19px); }
+  .row:last-child { border-bottom: none; }
+  .row > span { white-space: nowrap; }
+  @media (max-width: 520px) {
+    .laps-head, .row { grid-template-columns: 2.4em 1fr 3.4em; }
+    .laps-head span:nth-child(3), .row .total { display: none; }
+  }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0 8px; font-size: 14px; letter-spacing: .1em; }
+  .tile {
+    display: inline-block; position: relative;
+    width: .78em; margin-left: 2px; text-align: center;
+    background: #2f2e2a; border-radius: 2px; color: var(--ink);
+    line-height: 1.45;
+  }
+  .tile::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+    background: rgba(0,0,0,.55);
+  }
+  .tile.sep { background: none; width: .32em; }
+  .tile.sep::after { display: none; }
+  .row.new .tile { animation: tileIn .35s ease-out both; }
+  @keyframes tileIn {
+    from { transform: rotateX(-90deg); filter: brightness(.4); }
+    to   { transform: rotateX(0); filter: brightness(1); }
+  }
+  .total .tile { color: var(--muted); }
+  .row.best .lap .tile:not(.sep) { color: var(--green); }
+  .row.worst .lap .tile:not(.sep) { color: var(--red); }
+  .tag {
+    font-size: 11px; letter-spacing: .1em; padding: 3px 6px; border-radius: 4px;
+    justify-self: end; visibility: hidden;
+  }
+  .row.best .tag  { visibility: visible; color: #1d3317; background: var(--green); }
+  .row.worst .tag { visibility: visible; color: #3b0f08; background: var(--red); }
+
+  .hint {
+    text-align: center; color: #8a8478; font-size: 12px; letter-spacing: .08em;
+    margin-top: 22px;
+  }
+  kbd {
+    font-family: inherit; color: #2a2722;
+    border: 1px solid #d3cec3; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px;
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top">
+    <div class="brand"><span class="lamp" id="lamp"></span>STOPWATCH</div>
+    <button class="sound" id="sound" aria-pressed="true">소리 ON</button>
+  </div>
+
+  <section class="board paused" id="board" aria-live="off">
+    <span class="screw"></span><span class="screw"></span><span class="screw"></span><span class="screw"></span>
+    <div class="digits" id="digits"></div>
+    <div class="lap-now" id="lapNow"></div>
+  </section>
+
+  <div class="controls">
+    <button class="key" id="secondary" disabled>랩</button>
+    <button class="key go" id="primary">시작</button>
+  </div>
+
+  <section class="laps-board">
+    <div class="laps-head"><span>NO.</span><span>구간</span><span>누적</span><span></span></div>
+    <div id="laps"><div class="empty">랩 기록이 여기에 표시됩니다</div></div>
+  </section>
+
+  <p class="hint"><kbd>Space</kbd> 시작/정지 &nbsp;·&nbsp; <kbd>L</kbd> 랩 &nbsp;·&nbsp; <kbd>R</kbd> 초기화</p>
+</main>
+
+<script>
+/* ---------- 넘김 소리 ---------- */
+let soundOn = true;
+try { soundOn = localStorage.getItem('flip-sound') !== 'off'; } catch (e) {}
+let ac = null, noise = null;
+function clack(vol = 0.22, freq = 1900) {
+  if (!soundOn) return;
+  try {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const len = Math.floor(ac.sampleRate * 0.04);
+      noise = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 5);
+    }
+    if (ac.state === 'suspended') ac.resume();
+    const src = ac.createBufferSource(); src.buffer = noise;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.9;
+    const g = ac.createGain(); g.gain.value = vol;
+    src.connect(bp).connect(g).connect(ac.destination);
+    src.start();
+  } catch (e) {}
+}
+
+/* ---------- 플립 카드 ---------- */
+function makeDigit(small) {
+  const el = document.createElement('div');
+  el.className = 'digit' + (small ? ' small' : '');
+  el.innerHTML =
+    '<div class="half t"><span>0</span></div>' +
+    '<div class="half b"><span>0</span></div>' +
+    '<div class="half t ft"><span>0</span></div>' +
+    '<div class="half b fb"><span>0</span></div>';
+  const [top, bot, flapTop, flapBot] = el.querySelectorAll('span');
+  let cur = '0';
+  flapBot.parentElement.addEventListener('animationend', () => {
+    bot.textContent = cur; flapTop.textContent = cur;
+    el.classList.remove('flip');
+  });
+  return {
+    el,
+    set(v, dur) {
+      if (v === cur) return false;
+      const old = cur; cur = v;
+      el.classList.remove('flip');
+      top.textContent = v; bot.textContent = old;
+      flapTop.textContent = old; flapBot.textContent = v;
+      el.style.setProperty('--d', dur + 'ms');
+      void el.offsetWidth;          // 애니메이션 재시작
+      el.classList.add('flip');
+      return true;
+    }
+  };
+}
+
+const digitsEl = document.getElementById('digits');
+const sep = cls => { const s = document.createElement('div'); s.className = cls; s.innerHTML = cls.includes('dot') ? '<i></i>' : '<i></i><i></i>'; return s; };
+const group = (n, cls) => { const g = document.createElement('div'); g.className = 'group ' + (cls || ''); const ds = []; for (let i = 0; i < n; i++) { const d = makeDigit(); ds.push(d); g.appendChild(d.el); } return [g, ds]; };
+
+const [hG, hD] = group(2, 'hours');
+const [mG, mD] = group(2);
+const [sG, sD] = group(2);
+const tenth = makeDigit(true);
+digitsEl.append(hG, sep('colon hsep'), mG, sep('colon'), sG, sep('dot'), tenth.el);
+// 자리별 카드와 넘김 속도(ms): 빠르게 바뀌는 자리일수록 짧게
+const slots = [
+  [hD[0], 420], [hD[1], 420], [mD[0], 420], [mD[1], 420],
+  [sD[0], 380], [sD[1], 280], [tenth, 85]
+];
+
+/* ---------- 스탑워치 로직 ---------- */
+const board = document.getElementById('board');
+const lamp = document.getElementById('lamp');
+const lapNow = document.getElementById('lapNow');
+const primary = document.getElementById('primary');
+const secondary = document.getElementById('secondary');
+const lapsEl = document.getElementById('laps');
+const soundBtn = document.getElementById('sound');
+
+let running = false, startAt = 0, elapsed = 0, lapBase = 0, raf = 0;
+let laps = [];      // { ms, total, row }
+
+const now = () => running ? elapsed + (performance.now() - startAt) : elapsed;
+const p2 = n => String(n).padStart(2, '0');
+
+function parts(ms) {
+  const h = Math.floor(ms / 3600000) % 100;
+  const m = Math.floor(ms / 60000) % 60;
+  const s = Math.floor(ms / 1000) % 60;
+  return { h, m, s, d: Math.floor(ms / 100) % 10, cs: Math.floor(ms / 10) % 100 };
+}
+function fmt(ms) {
+  const t = parts(ms);
+  return (t.h ? p2(t.h) + ':' : '') + p2(t.m) + ':' + p2(t.s) + '.' + p2(t.cs);
+}
+
+function render() {
+  const ms = now();
+  const t = parts(ms);
+  digitsEl.classList.toggle('long', t.h > 0);
+  const chars = (p2(t.h) + p2(t.m) + p2(t.s) + t.d).split('');
+  let ticked = false;
+  chars.forEach((c, i) => {
+    const [dig, dur] = slots[i];
+    if (dig.set(c, dur) && i < 6) ticked = true;
+  });
+  if (ticked) clack();
+
+  if (laps.length || (running && ms > 0)) {
+    lapNow.innerHTML = '<b>랩 ' + (laps.length + 1) + '</b> &nbsp; ' + fmt(ms - lapBase);
+  } else {
+    lapNow.textContent = '';
+  }
+  if (running) raf = requestAnimationFrame(render);
+}
+
+function tiles(str) {
+  return str.split('').map(ch =>
+    /[0-9]/.test(ch) ? '<span class="tile">' + ch + '</span>' : '<span class="tile sep">' + ch + '</span>'
+  ).join('');
+}
+
+function addLapRow(i, lapMs, totalMs) {
+  if (laps.length === 1) lapsEl.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'row new';
+  row.innerHTML =
+    '<span>' + tiles(p2(i)) + '</span>' +
+    '<span class="lap">' + tiles(fmt(lapMs)) + '</span>' +
+    '<span class="total">' + tiles(fmt(totalMs)) + '</span>' +
+    '<span class="tag"></span>';
+  row.querySelectorAll('.tile').forEach((tl, k) => tl.style.animationDelay = (k * 18) + 'ms');
+  lapsEl.prepend(row);
+  return row;
+}
+
+function markBestWorst() {
+  laps.forEach(l => { l.row.classList.remove('best', 'worst'); l.row.querySelector('.tag').textContent = ''; });
+  if (laps.length < 2) return;
+  const vals = laps.map(l => l.ms);
+  const best = laps[vals.indexOf(Math.min(...vals))];
+  const worst = laps[vals.indexOf(Math.max(...vals))];
+  best.row.classList.add('best'); best.row.querySelector('.tag').textContent = '최고';
+  worst.row.classList.add('worst'); worst.row.querySelector('.tag').textContent = '최저';
+}
+
+function updateUI() {
+  primary.textContent = running ? '정지' : '시작';
+  primary.classList.toggle('go', !running);
+  primary.classList.toggle('stop', running);
+  secondary.textContent = running || elapsed === 0 ? '랩' : '초기화';
+  secondary.disabled = !running && elapsed === 0;
+  lamp.classList.toggle('on', running);
+  board.classList.toggle('paused', !running && elapsed > 0);
+}
+
+function press(btn) {
+  btn.classList.add('pressed');
+  setTimeout(() => btn.classList.remove('pressed'), 110);
+}
+
+function toggle() {
+  if (running) {
+    elapsed = now(); running = false;
+    cancelAnimationFrame(raf);
+  } else {
+    startAt = performance.now(); running = true;
+    raf = requestAnimationFrame(render);
+  }
+  clack(0.3, 900);
+  updateUI(); render();
+}
+
+function lap() {
+  if (!running) return;
+  const t = now();
+  const ms = t - lapBase;
+  lapBase = t;
+  const entry = { ms, total: t };
+  laps.push(entry);
+  entry.row = addLapRow(laps.length, ms, t);
+  markBestWorst();
+  clack(0.25, 1400);
+}
+
+function reset() {
+  if (running || elapsed === 0) return;
+  elapsed = 0; lapBase = 0; laps = [];
+  lapsEl.innerHTML = '<div class="empty">랩 기록이 여기에 표시됩니다</div>';
+  updateUI(); render();
+}
+
+primary.addEventListener('click', toggle);
+secondary.addEventListener('click', () => running ? lap() : reset());
+
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  try { localStorage.setItem('flip-sound', soundOn ? 'on' : 'off'); } catch (e) {}
+  syncSound();
+  clack(0.25, 1400);
+});
+function syncSound() {
+  soundBtn.textContent = soundOn ? '소리 ON' : '소리 OFF';
+  soundBtn.classList.toggle('on', soundOn);
+  soundBtn.setAttribute('aria-pressed', String(soundOn));
+}
+
+document.addEventListener('keydown', e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); press(primary); toggle(); }
+  else if (e.code === 'KeyL') { if (running) { press(secondary); lap(); } }
+  else if (e.code === 'KeyR') { if (!running && elapsed > 0) { press(secondary); reset(); } }
+});
+
+syncSound();
+updateUI();
+render();
+</script>
+</body>
+</html>
