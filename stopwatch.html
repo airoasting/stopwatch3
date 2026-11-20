@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스탑워치</title>
+<style>
+  :root {
+    --bg: #f5f5f4;
+    --surface: #ffffff;
+    --text: #1c1917;
+    --muted: #78716c;
+    --line: #e7e5e4;
+    --start: #16a34a;
+    --stop: #dc2626;
+    --neutral: #e7e5e4;
+    --neutral-text: #1c1917;
+    --best: #16a34a;
+    --worst: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0a09;
+      --surface: #1c1917;
+      --text: #fafaf9;
+      --muted: #a8a29e;
+      --line: #292524;
+      --start: #22c55e;
+      --stop: #ef4444;
+      --neutral: #292524;
+      --neutral-text: #fafaf9;
+      --best: #4ade80;
+      --worst: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+  }
+  .app {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .display {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(56px, 18vw, 88px);
+    font-weight: 200;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    padding: 24px 0 8px;
+  }
+  .display .cs { color: var(--muted); }
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  button {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    border: none;
+    font-size: 17px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  button:active { transform: scale(0.95); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:disabled:active { transform: none; }
+  button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  #secondary { background: var(--neutral); color: var(--neutral-text); }
+  #primary { background: var(--start); color: #fff; }
+  #primary.running { background: var(--stop); }
+  .laps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+  }
+  .laps li {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 17px;
+  }
+  .laps li.best { color: var(--best); }
+  .laps li.worst { color: var(--worst); }
+  .hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  kbd {
+    font-family: inherit;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    background: var(--surface);
+  }
+</style>
+</head>
+<body>
+  <main class="app">
+    <div class="display" id="display" aria-live="off">00:00<span class="cs">.00</span></div>
+
+    <div class="controls">
+      <button id="secondary" disabled>랩</button>
+      <button id="primary">시작</button>
+    </div>
+
+    <ul class="laps" id="laps"></ul>
+
+    <p class="hint"><kbd>Space</kbd> 시작/정지 · <kbd>L</kbd> 랩 · <kbd>R</kbd> 초기화</p>
+  </main>
+
+<script>
+  const displayEl = document.getElementById('display');
+  const primaryBtn = document.getElementById('primary');
+  const secondaryBtn = document.getElementById('secondary');
+  const lapsEl = document.getElementById('laps');
+
+  let running = false;
+  let startTime = 0;   // performance.now() at the last start
+  let elapsed = 0;     // ms accumulated before the last start
+  let laps = [];       // lap durations in ms
+  let lapStart = 0;    // total elapsed at the start of the current lap
+  let rafId = null;
+
+  function total() {
+    return running ? elapsed + (performance.now() - startTime) : elapsed;
+  }
+
+  function format(ms) {
+    const cs = Math.floor(ms / 10) % 100;
+    const s = Math.floor(ms / 1000) % 60;
+    const m = Math.floor(ms / 60000) % 60;
+    const h = Math.floor(ms / 3600000);
+    const pad = n => String(n).padStart(2, '0');
+    const main = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+    return { main, cs: '.' + pad(cs) };
+  }
+
+  function render() {
+    const t = format(total());
+    displayEl.innerHTML = `${t.main}<span class="cs">${t.cs}</span>`;
+    const current = lapsEl.querySelector('li.current span:last-child');
+    if (current) {
+      const l = format(total() - lapStart);
+      current.textContent = l.main + l.cs;
+    }
+  }
+
+  function tick() {
+    render();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function renderLaps() {
+    lapsEl.innerHTML = '';
+    if (!running && elapsed === 0) return;
+
+    const current = document.createElement('li');
+    current.className = 'current';
+    const l = format(total() - lapStart);
+    current.innerHTML = `<span>랩 ${laps.length + 1}</span><span>${l.main + l.cs}</span>`;
+    lapsEl.appendChild(current);
+
+    let bestIdx = -1, worstIdx = -1;
+    if (laps.length >= 2) {
+      bestIdx = laps.indexOf(Math.min(...laps));
+      worstIdx = laps.indexOf(Math.max(...laps));
+    }
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const li = document.createElement('li');
+      if (i === bestIdx) li.className = 'best';
+      else if (i === worstIdx) li.className = 'worst';
+      const f = format(laps[i]);
+      li.innerHTML = `<span>랩 ${i + 1}</span><span>${f.main + f.cs}</span>`;
+      lapsEl.appendChild(li);
+    }
+  }
+
+  function updateButtons() {
+    primaryBtn.textContent = running ? '정지' : '시작';
+    primaryBtn.classList.toggle('running', running);
+    secondaryBtn.textContent = running || elapsed === 0 ? '랩' : '초기화';
+    secondaryBtn.disabled = !running && elapsed === 0;
+  }
+
+  function toggle() {
+    if (running) {
+      elapsed += performance.now() - startTime;
+      running = false;
+      cancelAnimationFrame(rafId);
+      render();
+    } else {
+      startTime = performance.now();
+      running = true;
+      tick();
+    }
+    updateButtons();
+    renderLaps();
+  }
+
+  function lap() {
+    if (!running) return;
+    const now = total();
+    laps.push(now - lapStart);
+    lapStart = now;
+    renderLaps();
+  }
+
+  function reset() {
+    if (running) return;
+    elapsed = 0;
+    laps = [];
+    lapStart = 0;
+    render();
+    renderLaps();
+    updateButtons();
+  }
+
+  primaryBtn.addEventListener('click', toggle);
+  secondaryBtn.addEventListener('click', () => running ? lap() : reset());
+
+  document.addEventListener('keydown', e => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    else if (e.code === 'KeyL') lap();
+    else if (e.code === 'KeyR') reset();
+  });
+  // Space on a focused button would otherwise fire a click as well
+  document.querySelectorAll('button').forEach(b =>
+    b.addEventListener('keyup', e => { if (e.code === 'Space') e.preventDefault(); })
+  );
+  primaryBtn.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); });
+  secondaryBtn.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); });
+</script>
+</body>
+</html>
